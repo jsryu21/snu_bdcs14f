@@ -69,6 +69,12 @@
             <artifactId>reef-poison</artifactId>
             <version>${reef.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.microsoft.reef</groupId>
+            <artifactId>shimoga</artifactId>
+            <version>0.1-SNAPSHOT</version>
+        </dependency>
+        
         <!-- End of REEF -->
         
         <!-- HADOOP -->
