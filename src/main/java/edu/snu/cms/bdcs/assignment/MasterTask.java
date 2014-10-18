@@ -6,10 +6,7 @@ import com.microsoft.reef.io.network.nggroup.api.task.CommunicationGroupClient;
 import com.microsoft.reef.io.network.nggroup.api.task.GroupCommClient;
 import com.microsoft.reef.io.network.util.Pair;
 import com.microsoft.reef.task.Task;
-import edu.snu.cms.bdcs.assignment.operators.ControlMessageBroadcaster;
-import edu.snu.cms.bdcs.assignment.operators.FeatureBroadcaster;
-import edu.snu.cms.bdcs.assignment.operators.MaxIndexReducer;
-import edu.snu.cms.bdcs.assignment.operators.UserDataReducer;
+import edu.snu.cms.bdcs.assignment.operators.*;
 import org.apache.mahout.math.Matrix;
 
 import javax.inject.Inject;
@@ -29,6 +26,7 @@ public class MasterTask implements Task {
   private final Broadcast.Sender<Matrix> featureBroadcaster;
   private final Reduce.Receiver<Pair<Integer, Integer>> maxIndexReducer;
   private final Reduce.Receiver<Map<Integer, Map<Integer, Byte>>> userDataReducer;
+  private final Broadcast.Sender<Map<Integer, Map<Integer, Byte>>> userDataBroadcaster;
 
   private Pair<Integer, Integer> maxIndexP;
   private double errorRate = Double.MAX_VALUE;
@@ -41,7 +39,7 @@ public class MasterTask implements Task {
     this.featureBroadcaster = communicationGroup.getBroadcastSender(FeatureBroadcaster.class);
     this.maxIndexReducer = communicationGroup.getReduceReceiver(MaxIndexReducer.class);
     this.userDataReducer = communicationGroup.getReduceReceiver(UserDataReducer.class);
-
+    this.userDataBroadcaster = communicationGroup.getBroadcastSender(UserDataBroadcaster.class);
   }
 
   @Override
@@ -57,12 +55,15 @@ public class MasterTask implements Task {
 
     /* Unfortunately I have no choice but using the old GroupComm */
     // 2. Reduce input
-    controlMessageBroadcaster.send(ControlMessages.CollectUserData);
-    Map userData = userDataReducer.reduce(); // R ordered by U
+    controlMessageBroadcaster.send(ControlMessages.CollectData);
+    Map userData = userDataReducer.reduce(); // R grouped by U
 
     // TODO Scatter this input
 
     // 3. Redistribute input
+    controlMessageBroadcaster.send(ControlMessages.DistributeUserData);
+    userDataBroadcaster.send(userData);
+
 
     // 4. Init ItemMatrix
     double averageRate = 2.5; // TODO Get average to initiate M

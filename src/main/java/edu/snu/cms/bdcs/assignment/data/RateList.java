@@ -91,4 +91,11 @@ public class RateList {
   public void clearUserData() {
     uRates.clear();
   }
+
+  public void addUserData(Map<Integer, Map<Integer, Byte>> newData) {
+    // Not to waste memory (of course I already do a lot)
+    if (!uRates.isEmpty())
+      uRates.clear();
+    uRates.putAll(newData);
+  }
 }

@@ -7,6 +7,7 @@ import java.io.Serializable;
  */
 public enum ControlMessages implements Serializable{
   GetMaxIndex,
-  CollectUserData,
+  CollectData,
+  DistributeUserData,
   Stop
 }

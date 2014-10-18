@@ -100,7 +100,12 @@ public final class ALSDriver {
           .setReceiverId(MasterTask.TASK_ID)
           .setDataCodecClass(SerializableCodec.class)
           .setReduceFunctionClass(UserDataReduceFunction.class)
-          .build()) // For getting Maximum indices. Assume all the indices are normalized to start at 1
+          .build()) // To collect user data to group by.
+      .addBroadcast(UserDataBroadcaster.class,
+        BroadcastOperatorSpec.newBuilder()
+          .setSenderId(MasterTask.TASK_ID)
+          .setDataCodecClass(SerializableCodec.class)
+          .build()) // To distribute the data grouped by user id.
       .addBroadcast(FeatureBroadcaster.class,
         BroadcastOperatorSpec.newBuilder()
           .setSenderId(MasterTask.TASK_ID)

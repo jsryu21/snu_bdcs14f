@@ -40,6 +40,7 @@ public final class SlaveTask implements Task {
   private final Broadcast.Receiver<Matrix> featureMatrixBroadcaster;
   private final Reduce.Sender<Pair<Integer, Integer>> maxIndexReducer;
   private final Reduce.Sender<Map<Integer, Map<Integer, Byte>>> userDataReducer;
+  private final Broadcast.Receiver<Map<Integer, Map<Integer, Byte>>> userDataBroadcaster;
 
 
   private Map<Integer, Map<Integer, Byte>> rowRates = null, colRates = null;
@@ -55,6 +56,7 @@ public final class SlaveTask implements Task {
     this.featureMatrixBroadcaster = communicationGroup.getBroadcastReceiver(FeatureBroadcaster.class);
     this.maxIndexReducer = communicationGroup.getReduceSender(MaxIndexReducer.class);
     this.userDataReducer = communicationGroup.getReduceSender(UserDataReducer.class);
+    this.userDataBroadcaster = communicationGroup.getBroadcastReceiver(UserDataBroadcaster.class);
   }
 
   @Override
@@ -71,9 +73,15 @@ public final class SlaveTask implements Task {
           break;
 
         // Collect the data ordered by UserId
-        case CollectUserData:
+        case CollectData:
           userDataReducer.send(dataSet.getRowRate());
           dataSet.clearUserData(); // Clear the existing data to avoid redundancy
+          break;
+
+        // Re-distribute the user data
+        case DistributeUserData:
+          Map userData = userDataBroadcaster.receive();
+          dataSet.addUserData(userData);
           break;
 
         case Stop:
