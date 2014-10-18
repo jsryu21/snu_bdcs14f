@@ -17,6 +17,8 @@ import com.microsoft.reef.io.serialization.SerializableCodec;
 import com.microsoft.tang.Configuration;
 import com.microsoft.tang.Configurations;
 import com.microsoft.tang.Tang;
+import com.microsoft.tang.annotations.Name;
+import com.microsoft.tang.annotations.NamedParameter;
 import com.microsoft.tang.annotations.Unit;
 import com.microsoft.tang.exceptions.InjectionException;
 import com.microsoft.tang.formats.ConfigurationSerializer;
@@ -76,18 +78,18 @@ public final class ALSDriver {
         BroadcastOperatorSpec.newBuilder()
           .setSenderId(MasterTask.TASK_ID)
           .setDataCodecClass(SerializableCodec.class)
-          .build())
-      .addBroadcast(FeatureBroadcaster.class,
-        BroadcastOperatorSpec.newBuilder()
-          .setSenderId(MasterTask.TASK_ID)
-          .setDataCodecClass(SerializableCodec.class)
-          .build())
+          .build()) // For Control message communication
       .addReduce(MaxIndexReducer.class,
         ReduceOperatorSpec.newBuilder()
           .setReceiverId(MasterTask.TASK_ID)
           .setDataCodecClass(SerializableCodec.class)
           .setReduceFunctionClass(MaxIndexReduceFunction.class)
-          .build())
+          .build()) // For getting Maximum indices. Assume all the indices are normalized to start at 1
+      .addBroadcast(FeatureBroadcaster.class,
+        BroadcastOperatorSpec.newBuilder()
+          .setSenderId(MasterTask.TASK_ID)
+          .setDataCodecClass(SerializableCodec.class)
+          .build()) // For Feature matrix broadcast
       .finalise();
   }
 
@@ -299,5 +301,11 @@ public final class ALSDriver {
 
   private boolean masterTaskSubmitted() {
     return !masterSubmitted.compareAndSet(false, true);
+  }
+
+  /**
+   */
+  @NamedParameter
+  public static class AllCommunicationGroup implements Name<String> {
   }
 }

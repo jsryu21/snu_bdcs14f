@@ -7,6 +7,5 @@ import java.io.Serializable;
  */
 public enum ControlMessages implements Serializable{
   GetMax,
-  ReduceInput,
   Stop
 }

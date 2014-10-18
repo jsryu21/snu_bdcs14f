@@ -38,24 +38,19 @@ public final class SlaveTask implements Task {
   private final CommunicationGroupClient communicationGroup;
   private final Broadcast.Receiver<ControlMessages> controlMessageBroadcaster;
   private final Broadcast.Receiver<Matrix> featureMatrixBroadcaster;
-//  private final Reduce.Sender<Map<Integer, Map<Integer, Long>>> inputReducer;
   private final Reduce.Sender<Pair<Integer, Integer>> maxIndexReducer;
 
   private Map<Integer, Map<Integer, Long>> rowRates = null, colRates = null;
 
   private final RateList dataSet;
 
-  public static final String TASK_ID = "SlaveTask";
-
-
   @Inject
   SlaveTask(final RateList dataSet,
             final GroupCommClient groupCommClient) {
     this.dataSet = dataSet;
-    this.communicationGroup = groupCommClient.getCommunicationGroup(AllCommunicationGroup.class);
+    this.communicationGroup = groupCommClient.getCommunicationGroup(ALSDriver.AllCommunicationGroup.class);
     this.controlMessageBroadcaster = communicationGroup.getBroadcastReceiver(ControlMessageBroadcaster.class);
     this.featureMatrixBroadcaster = communicationGroup.getBroadcastReceiver(FeatureBroadcaster.class);
-//    this.inputReducer = communicationGroup.getReduceSender(InputReducer.class);
     this.maxIndexReducer = communicationGroup.getReduceSender(MaxIndexReducer.class);
   }
 
@@ -74,12 +69,6 @@ public final class SlaveTask implements Task {
           LOG.info("Get STOP control massage. Terminate");
           repeat = false;
           break;
-        /*
-        case ComputeUser:
-          Matrix m = featureMatrixBroadcaster.receive();
-          computeUi(m, 1); // TODO change 1 to Ui
-          break;
-        */
       }
     }
 
@@ -91,9 +80,5 @@ public final class SlaveTask implements Task {
     colRates = dataSet.getColRate();
 
     LOG.info("Loading data");
-  }
-
-  private void computeUi(Matrix mIj, int nUi) {
-
   }
 }

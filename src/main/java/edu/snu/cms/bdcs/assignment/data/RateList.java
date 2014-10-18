@@ -18,8 +18,8 @@ public class RateList {
 
   private final DataSet<LongWritable, Text> dataSet;
   private final Parser<String> parser;
-  private final Map<Integer, Map<Integer, Long>> colRates = new HashMap<>();
-  private final Map<Integer, Map<Integer, Long>> rowRates = new HashMap<>();
+  private final Map<Integer, Map<Integer, Long>> iRates = new HashMap<>();
+  private final Map<Integer, Map<Integer, Long>> uRates = new HashMap<>();
 
   private int maxUid = 0;
   private int maxIid = 0;
@@ -29,21 +29,28 @@ public class RateList {
     this.parser=parser;
   }
 
+  public Map<Integer, Long> getRateByUser(final int uid) {
+    return uRates.get(uid);
+  }
+
+  public Map<Integer, Long> getRateByItem(final int iid) {
+    return iRates.get(iid);
+  }
+
   public Map<Integer, Map<Integer, Long>> getColRate() {
-    if(rowRates.isEmpty()) {
+    if(uRates.isEmpty()) {
       loadData();
     }
-    return colRates;
+    return iRates;
   }
 
   public Map<Integer, Map<Integer, Long>> getRowRate() {
-    if(colRates.isEmpty()) {
+    if(iRates.isEmpty()) {
       loadData();
     }
-    return rowRates;
+    return uRates;
   }
 
-  // TODO Do we need this?
   public int getMaxUid() {
     return maxUid;
   }
@@ -59,15 +66,15 @@ public class RateList {
       final Long r = rate.getRate();
       updateMax(uid, iid);
 
-      if(!rowRates.containsKey(uid)) {
-        rowRates.put(uid, new HashMap());
+      if(!uRates.containsKey(uid)) {
+        uRates.put(uid, new HashMap());
       }
-      rowRates.get(uid).put(iid, r);
+      uRates.get(uid).put(iid, r);
 
-      if(!colRates.containsKey(iid)) {
-        colRates.put(iid, new HashMap());
+      if(!iRates.containsKey(iid)) {
+        iRates.put(iid, new HashMap());
       }
-      colRates.get(iid).put(uid, r);
+      iRates.get(iid).put(uid, r);
     }
   }
 
