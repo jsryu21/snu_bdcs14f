@@ -18,14 +18,13 @@ package edu.snu.cms.bdcs.assignment;
 import com.microsoft.reef.client.DriverConfiguration;
 import com.microsoft.reef.client.DriverLauncher;
 import com.microsoft.reef.driver.evaluator.EvaluatorRequest;
+import com.microsoft.reef.driver.parameters.DriverMemory;
 import com.microsoft.reef.io.data.loading.api.DataLoadingRequestBuilder;
+import com.microsoft.reef.io.network.nggroup.impl.driver.GroupCommService;
 import com.microsoft.reef.runtime.local.client.LocalRuntimeConfiguration;
 import com.microsoft.reef.runtime.yarn.client.YarnClientConfiguration;
 import com.microsoft.reef.util.EnvironmentUtils;
-import com.microsoft.tang.Configuration;
-import com.microsoft.tang.Injector;
-import com.microsoft.tang.JavaConfigurationBuilder;
-import com.microsoft.tang.Tang;
+import com.microsoft.tang.*;
 import com.microsoft.tang.annotations.Name;
 import com.microsoft.tang.annotations.NamedParameter;
 import com.microsoft.tang.exceptions.BindException;
@@ -40,16 +39,13 @@ import java.util.logging.Logger;
 /**
  * Implementation of Alternating Least Squares(ALS)
  * algorithm for Collaborative Filtering.
- * TODO elaborate the detail of application workflow
  */
 public final class ALS {
 
   private static final Logger LOG = Logger.getLogger(ALS.class.getName());
 
-
-  private static final int NUM_LOCAL_THREADS = 16;
-  private static final int NUM_SPLITS = 6;
-  private static final int NUM_COMPUTE_EVALUATORS = 2;
+  private static final int NUM_LOCAL_THREADS = 8;
+  private static final int NUM_COMPUTE_EVALUATORS = 1;
 
   @NamedParameter(doc = "Whether or not to run on the local runtime",
     short_name = "local", default_value = "true")
@@ -76,8 +72,17 @@ public final class ALS {
   public static final class Lambda implements Name<String> {
   }
 
+  @NamedParameter(doc = "The memory of evalutors",
+    short_name = "memory", default_value = "1024")
+  public static final class Memory implements Name<Integer> {
+  }
+
+  @NamedParameter(doc = "The number of partitions",
+  short_name = "split", default_value = "4")
+  public static final class Split implements Name<Integer> {
+  }
+
   /**
-   *
    * @param args command line parameters.
    * @throws com.microsoft.tang.exceptions.BindException      configuration error.
    * @throws com.microsoft.tang.exceptions.InjectionException configuration error.
@@ -93,6 +98,8 @@ public final class ALS {
       .registerShortNameOfClass(InputDir.class)
       .registerShortNameOfClass(NumFeatures.class)
       .registerShortNameOfClass(Lambda.class)
+      .registerShortNameOfClass(Memory.class)
+      .registerShortNameOfClass(Split.class)
       .processCommandLine(args);
 
     final Injector injector = tang.newInjector(cb.build());
@@ -100,6 +107,9 @@ public final class ALS {
     final boolean isLocal = injector.getNamedInstance(Local.class);
     final int jobTimeout = injector.getNamedInstance(TimeOut.class) * 60 * 1000;
     final String inputDir = injector.getNamedInstance(InputDir.class);
+    final int memory = injector.getNamedInstance(Memory.class);
+    final int numSplit = injector.getNamedInstance(Split.class);
+
     final Configuration runtimeConfiguration;
     if (isLocal) {
       LOG.log(Level.INFO, "Running Data Loading demo on the local runtime");
@@ -113,24 +123,30 @@ public final class ALS {
 
     final EvaluatorRequest computeRequest = EvaluatorRequest.newBuilder()
       .setNumber(NUM_COMPUTE_EVALUATORS)
-      .setMemory(512)
+      .setMemory(memory)
       .setNumber(1)
       .build();
 
-    final Configuration driverConfiguration =
+    final Configuration dataLoadingConf =
       new DataLoadingRequestBuilder()
-        .setMemoryMB(1024)
-        .setComputeRequest(computeRequest)
+        .setMemoryMB(memory)
         .setInputFormatClass(TextInputFormat.class)
         .setInputPath(inputDir)
-        .setNumberOfDesiredSplits(NUM_SPLITS)
-        .setDriverConfigurationModule(DriverConfiguration.CONF
+        .setNumberOfDesiredSplits(numSplit)
+        .setComputeRequest(computeRequest)
+        .renewFailedEvaluators(false)
+        .setDriverConfigurationModule(
+          DriverConfiguration.CONF
             .set(DriverConfiguration.GLOBAL_LIBRARIES, EnvironmentUtils.getClassLocation(ALSDriver.class))
             .set(DriverConfiguration.DRIVER_IDENTIFIER, "ALS")
             .set(DriverConfiguration.ON_CONTEXT_ACTIVE, ALSDriver.ActiveContextHandler.class)
             .set(DriverConfiguration.ON_TASK_COMPLETED, ALSDriver.TaskCompletedHandler.class)
-        )
+            .set(DriverConfiguration.ON_TASK_FAILED, ALSDriver.TaskFailedHandler.class)
+            .set(DriverConfiguration.ON_TASK_RUNNING, ALSDriver.TaskRunningHandler.class)
+            .set(DriverConfiguration.DRIVER_MEMORY, memory))
         .build();
+    final Configuration driverConfiguration =
+      Configurations.merge(dataLoadingConf, GroupCommService.getConfiguration());
 
     DriverLauncher.getLauncher(runtimeConfiguration).run(driverConfiguration, jobTimeout);
   }
