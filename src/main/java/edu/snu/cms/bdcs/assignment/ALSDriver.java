@@ -9,8 +9,6 @@ import com.microsoft.reef.driver.task.RunningTask;
 import com.microsoft.reef.driver.task.TaskConfiguration;
 import com.microsoft.reef.evaluator.context.parameters.ContextIdentifier;
 import com.microsoft.reef.io.data.loading.api.DataLoadingService;
-import com.microsoft.reef.io.network.group.config.GroupOperators;
-import com.microsoft.reef.io.network.naming.NameServer;
 import com.microsoft.reef.io.network.naming.NameServerParameters;
 import com.microsoft.reef.io.network.nggroup.api.driver.CommunicationGroupDriver;
 import com.microsoft.reef.io.network.nggroup.api.driver.GroupCommDriver;
@@ -31,12 +29,12 @@ import edu.snu.cms.bdcs.assignment.data.Parser;
 import edu.snu.cms.bdcs.assignment.data.RateList;
 import edu.snu.cms.bdcs.assignment.data.ymusic.MusicDataParser;
 import edu.snu.cms.bdcs.assignment.operators.*;
+import edu.snu.cms.bdcs.assignment.operators.functions.FeatureMatrixReduceFunction;
 import edu.snu.cms.bdcs.assignment.operators.functions.ItemDataReduceFunction;
 import edu.snu.cms.bdcs.assignment.operators.functions.MaxIndexReduceFunction;
 import edu.snu.cms.bdcs.assignment.operators.functions.UserDataReduceFunction;
 
 import javax.inject.Inject;
-import java.security.acl.Group;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -62,20 +60,17 @@ public final class ALSDriver {
   private final AtomicBoolean masterSubmitted = new AtomicBoolean(false);
 
   private String communicationsGroupMasterContextId;
-  private final int nameServerPort;
 
   /**
    */
   @Inject
   public ALSDriver(final DataLoadingService dataLoadingService,
                    final GroupCommDriver groupCommDriver,
-                   final ConfigurationSerializer confSerializer,
-                   final @Parameter(NameServerParameters.NameServerPort.class) int nameServerPort) {
+                   final ConfigurationSerializer confSerializer) {
     LOG.log(Level.FINE, "Instantiated 'ALSDriver'");
     this.dataLoadingService = dataLoadingService;
     this.groupCommDriver = groupCommDriver;
     this.confSerializer = confSerializer;
-    this.nameServerPort = nameServerPort;
 
     final int numPartition = dataLoadingService.getNumberOfPartitions();
     final int numParticipants = numPartition + 1;
@@ -118,10 +113,16 @@ public final class ALSDriver {
           .setSenderId(MasterTask.TASK_ID)
           .setDataCodecClass(SerializableCodec.class)
           .build()) // To distribute the data grouped by item id.
-      .addBroadcast(FeatureBroadcaster.class,
+      .addBroadcast(FeatureMatrixBroadcaster.class,
         BroadcastOperatorSpec.newBuilder()
           .setSenderId(MasterTask.TASK_ID)
           .setDataCodecClass(SerializableCodec.class)
+          .build()) // To broadcast the Feature matrix
+      .addReduce(FeatureMatrixReducer.class,
+        ReduceOperatorSpec.newBuilder()
+          .setReceiverId(MasterTask.TASK_ID)
+          .setDataCodecClass(SerializableCodec.class)
+          .setReduceFunctionClass(FeatureMatrixReduceFunction.class)
           .build()) // For Feature matrix broadcast
       .finalise();
   }

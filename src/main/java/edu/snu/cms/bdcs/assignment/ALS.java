@@ -43,7 +43,7 @@ public final class ALS {
 
   private static final Logger LOG = Logger.getLogger(ALS.class.getName());
 
-  private static final int NUM_LOCAL_THREADS = 8;
+  private static final int NUM_LOCAL_THREADS = 5;
   private static final int NUM_COMPUTE_EVALUATORS = 1;
 
   @NamedParameter(doc = "Whether or not to run on the local runtime",
@@ -63,12 +63,12 @@ public final class ALS {
 
   @NamedParameter(doc = "Number of feature to approximate",
     short_name = "num_feat", default_value = "3")
-  public static final class NumFeatures implements Name<String> {
+  public static final class NumFeature implements Name<Integer> {
   }
 
   @NamedParameter(doc = "The coefficient term for regularization",
     short_name = "lambda", default_value = "0.01")
-  public static final class Lambda implements Name<String> {
+  public static final class Lambda implements Name<Double> {
   }
 
   @NamedParameter(doc = "The memory of evalutors",
@@ -105,7 +105,7 @@ public final class ALS {
       .registerShortNameOfClass(Local.class)
       .registerShortNameOfClass(TimeOut.class)
       .registerShortNameOfClass(InputDir.class)
-      .registerShortNameOfClass(NumFeatures.class)
+      .registerShortNameOfClass(NumFeature.class)
       .registerShortNameOfClass(Lambda.class)
       .registerShortNameOfClass(Memory.class)
       .registerShortNameOfClass(Split.class)
@@ -115,12 +115,14 @@ public final class ALS {
     final Injector injector = tang.newInjector(cb.build());
 
     final boolean isLocal = injector.getNamedInstance(Local.class);
-    final int jobTimeout = injector.getNamedInstance(TimeOut.class) * 60 * 1000;
+//    final int jobTimeout = injector.getNamedInstance(TimeOut.class) * 60 * 1000;
+    final int jobTimeout = injector.getNamedInstance(TimeOut.class) * 10 * 1000;
     final String inputDir = injector.getNamedInstance(InputDir.class);
     final int computeMemory = injector.getNamedInstance(ComputeMemory.class);
     final int memory = injector.getNamedInstance(Memory.class);
     final int numSplit = injector.getNamedInstance(Split.class);
     final int nameServerPort = injector.getNamedInstance(NameServerPort.class);
+    final int numFeature = injector.getNamedInstance(NumFeature.class);
 
     final Configuration runtimeConfiguration;
     if (isLocal) {
@@ -161,7 +163,7 @@ public final class ALS {
       Configurations.merge(dataLoadingConf, GroupCommService.getConfiguration());
     final Configuration nameServerConfiguration =
       Tang.Factory.getTang().newConfigurationBuilder()
-//      .bindNamedParameter(NameServerPort.class, nameServerPort+"")
+      .bindNamedParameter(NumFeature.class, String.valueOf(numFeature))
       .build();
 
     DriverLauncher.getLauncher(runtimeConfiguration).run(driverConfiguration, jobTimeout);

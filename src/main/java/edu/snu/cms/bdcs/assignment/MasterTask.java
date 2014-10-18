@@ -1,16 +1,20 @@
 package edu.snu.cms.bdcs.assignment;
 
+import com.microsoft.reef.examples.nggroup.bgd.math.DenseVector;
 import com.microsoft.reef.io.network.group.operators.Broadcast;
 import com.microsoft.reef.io.network.group.operators.Reduce;
 import com.microsoft.reef.io.network.nggroup.api.task.CommunicationGroupClient;
 import com.microsoft.reef.io.network.nggroup.api.task.GroupCommClient;
 import com.microsoft.reef.io.network.util.Pair;
 import com.microsoft.reef.task.Task;
+import com.microsoft.tang.annotations.Parameter;
 import edu.snu.cms.bdcs.assignment.operators.*;
+import org.apache.mahout.math.DenseMatrix;
 import org.apache.mahout.math.Matrix;
 
 import javax.inject.Inject;
 import java.nio.charset.Charset;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Logger;
 
@@ -23,7 +27,6 @@ public class MasterTask implements Task {
 
   private final CommunicationGroupClient communicationGroup;
   private final Broadcast.Sender<ControlMessages> controlMessageBroadcaster;
-  private final Broadcast.Sender<Matrix> featureBroadcaster;
   private final Reduce.Receiver<Pair<Integer, Integer>> maxIndexReducer;
 
   private final Reduce.Receiver<Map<Integer, Map<Integer, Byte>>> userDataReducer;
@@ -32,15 +35,25 @@ public class MasterTask implements Task {
   private final Reduce.Receiver<Map<Integer, Map<Integer, Byte>>> itemDataReducer;
   private final Broadcast.Sender<Map<Integer, Map<Integer, Byte>>> itemDataBroadcaster;
 
+  private final Broadcast.Sender<Map<Integer, DenseVector>> featureMatrixBroadcaster;
+  private final Reduce.Receiver<Map<Integer, DenseVector>> featureMatrixReducer;
+
   private Pair<Integer, Integer> maxIndexP;
   private double errorRate = Double.MAX_VALUE;
 
+  private Map<Integer, DenseVector> itemMatrix = null;
+  private Map<Integer, DenseVector> userMatrix = null;
+
+  private final int numFeat;
+
   @Inject
   public MasterTask(
-    final GroupCommClient groupCommClient) {
+    final GroupCommClient groupCommClient,
+    final @Parameter(ALS.NumFeature.class) int numFeat) {
+    this.numFeat = numFeat;
     communicationGroup = groupCommClient.getCommunicationGroup(ALSDriver.AllCommunicationGroup.class);
+
     this.controlMessageBroadcaster = communicationGroup.getBroadcastSender(ControlMessageBroadcaster.class);
-    this.featureBroadcaster = communicationGroup.getBroadcastSender(FeatureBroadcaster.class);
     this.maxIndexReducer = communicationGroup.getReduceReceiver(MaxIndexReducer.class);
 
     this.userDataReducer = communicationGroup.getReduceReceiver(UserDataReducer.class);
@@ -48,6 +61,9 @@ public class MasterTask implements Task {
 
     this.itemDataReducer = communicationGroup.getReduceReceiver(UserDataReducer.class);
     this.itemDataBroadcaster = communicationGroup.getBroadcastSender(UserDataBroadcaster.class);
+
+    this.featureMatrixBroadcaster = communicationGroup.getBroadcastSender(FeatureMatrixBroadcaster.class);
+    this.featureMatrixReducer = communicationGroup.getReduceReceiver(FeatureMatrixReducer.class);
   }
 
   @Override
@@ -83,7 +99,7 @@ public class MasterTask implements Task {
 
     // 6. Init ItemMatrix
     double averageRate = 2.5; // TODO Get average to initiate M
-    initItemMatrix(maxIndexP.first, maxIndexP.second, averageRate);
+    itemMatrix = initItemMatrix(numFeat, maxIndexP.second, averageRate);
 
     /*
      * Iteration Step
@@ -96,6 +112,11 @@ public class MasterTask implements Task {
       // Send Message : "Gather Ui"
       // Gather the Vectors
       // => Update User Matrix
+      controlMessageBroadcaster.send(ControlMessages.DistributeItemFeatureMatrix);
+      featureMatrixBroadcaster.send(itemMatrix);
+
+      controlMessageBroadcaster.send(ControlMessages.CollectUserFeatureMatrix);
+      userMatrix = featureMatrixReducer.reduce();
 
       // Update Item matrix using User Matrix
       // Send Message : "Compute User!"
@@ -103,6 +124,11 @@ public class MasterTask implements Task {
       // Send Message : "Gather Ij"
       // Gather the Vectors
       // => Update Item Matrix
+//      controlMessageBroadcaster.send(ControlMessages.DistributeUserFeatureMatrix);
+//      featureMatrixBroadcaster.send(itemMatrix);
+
+//      controlMessageBroadcaster.send(ControlMessages.CollectItemFeatureMatrix);
+//      itemMatrix = featureMatrixReducer.reduce();
 
     } while(!converged(iteration));
     /*
@@ -114,8 +140,13 @@ public class MasterTask implements Task {
     return message.getBytes(Charset.forName("UTF-8"));
   }
 
-  private void initItemMatrix(final int numFeat, final int numItems, double averageRating) {
+  private Map<Integer, DenseVector> initItemMatrix(final int numFeat, final int numItems, double averageRating) {
     // TODO Fill out the matrices
+    Map<Integer, DenseVector> result = new HashMap<Integer, DenseVector>();
+    for (int i = 0; i < numFeat; i++) {
+      result.put(i, new DenseVector(numItems));
+    }
+    return result;
   }
 
   private boolean converged(int iteration) {

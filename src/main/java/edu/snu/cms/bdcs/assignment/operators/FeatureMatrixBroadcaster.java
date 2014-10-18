@@ -6,5 +6,5 @@ import com.microsoft.tang.annotations.NamedParameter;
 /**
  */
 @NamedParameter
-public class FeatureBroadcaster implements Name<String> {
+public class FeatureMatrixBroadcaster implements Name<String> {
 }

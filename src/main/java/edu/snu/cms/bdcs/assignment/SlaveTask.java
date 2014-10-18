@@ -15,6 +15,7 @@
  */
 package edu.snu.cms.bdcs.assignment;
 
+import com.microsoft.reef.examples.nggroup.bgd.math.DenseVector;
 import com.microsoft.reef.io.network.group.operators.Broadcast;
 import com.microsoft.reef.io.network.group.operators.Reduce;
 import com.microsoft.reef.io.network.nggroup.api.task.CommunicationGroupClient;
@@ -37,7 +38,6 @@ public final class SlaveTask implements Task {
 
   private final CommunicationGroupClient communicationGroup;
   private final Broadcast.Receiver<ControlMessages> controlMessageBroadcaster;
-  private final Broadcast.Receiver<Matrix> featureMatrixBroadcaster;
   private final Reduce.Sender<Pair<Integer, Integer>> maxIndexReducer;
 
   private final Reduce.Sender<Map<Integer, Map<Integer, Byte>>> userDataReducer;
@@ -45,6 +45,9 @@ public final class SlaveTask implements Task {
 
   private final Reduce.Sender<Map<Integer, Map<Integer, Byte>>> itemDataReducer;
   private final Broadcast.Receiver<Map<Integer, Map<Integer, Byte>>> itemDataBroadcaster;
+
+  private final Broadcast.Receiver<Map<Integer, DenseVector>> featureMatrixBroadcaster;
+  private final Reduce.Sender<Map<Integer, DenseVector>> featureMatrixReducer;
 
   private Map<Integer, Map<Integer, Byte>> rowRates = null, colRates = null;
 
@@ -56,23 +59,35 @@ public final class SlaveTask implements Task {
     this.dataSet = dataSet;
     this.communicationGroup = groupCommClient.getCommunicationGroup(ALSDriver.AllCommunicationGroup.class);
     this.controlMessageBroadcaster = communicationGroup.getBroadcastReceiver(ControlMessageBroadcaster.class);
-    this.featureMatrixBroadcaster = communicationGroup.getBroadcastReceiver(FeatureBroadcaster.class);
+
     this.maxIndexReducer = communicationGroup.getReduceSender(MaxIndexReducer.class);
     this.userDataReducer = communicationGroup.getReduceSender(UserDataReducer.class);
     this.userDataBroadcaster = communicationGroup.getBroadcastReceiver(UserDataBroadcaster.class);
 
     this.itemDataReducer = communicationGroup.getReduceSender(UserDataReducer.class);
     this.itemDataBroadcaster = communicationGroup.getBroadcastReceiver(UserDataBroadcaster.class);
+
+    this.featureMatrixBroadcaster = communicationGroup.getBroadcastReceiver(FeatureMatrixBroadcaster.class);
+    this.featureMatrixReducer = communicationGroup.getReduceSender(FeatureMatrixReducer.class);
   }
 
   @Override
   public final byte[] call(final byte[] memento) throws Exception {
     loadData();
 
-    for(boolean repeat = true; repeat; ) {
+    Map<Integer, DenseVector> itemMatrix = null;
+    Map<Integer, DenseVector> userMatrix = null;
+
+    for (boolean repeat = true; repeat; ) {
 
       final ControlMessages message = controlMessageBroadcaster.receive();
       switch (message) {
+
+        case Stop:
+          LOG.info("Get STOP control massage. Terminate");
+          repeat = false;
+          break;
+
         // Get maximum indices for user and item data
         case GetMaxIndex:
           maxIndexReducer.send(new Pair<>(dataSet.getMaxUid(), dataSet.getMaxIid()));
@@ -102,9 +117,28 @@ public final class SlaveTask implements Task {
           dataSet.addItemData(itemData);
           break;
 
-        case Stop:
-          LOG.info("Get STOP control massage. Terminate");
-          repeat = false;
+        case DistributeItemFeatureMatrix:
+          itemMatrix = featureMatrixBroadcaster.receive();
+          break;
+
+        case DistributeUserFeatureMatrix:
+          userMatrix = featureMatrixBroadcaster.receive();
+          break;
+
+        case CollectUserFeatureMatrix:
+          assert(userMatrix != null);
+//          featureMatrixReducer.send(userMatrix);
+          featureMatrixReducer.send(itemMatrix);
+          dataSet.clearUserData();
+          break;
+
+        case CollectItemFeatureMatrix:
+          assert(itemMatrix != null);
+          featureMatrixReducer.send(itemMatrix);
+          dataSet.clearItemData();
+          break;
+
+        default:
           break;
       }
     }

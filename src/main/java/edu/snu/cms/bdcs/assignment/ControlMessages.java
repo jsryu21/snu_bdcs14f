@@ -11,5 +11,9 @@ public enum ControlMessages implements Serializable{
   DistributeUserData,
   CollectItemData,
   DistributeItemData,
+  DistributeItemFeatureMatrix,
+  DistributeUserFeatureMatrix,
+  CollectItemFeatureMatrix,
+  CollectUserFeatureMatrix,
   Stop
 }
