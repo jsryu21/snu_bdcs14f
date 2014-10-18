@@ -39,8 +39,10 @@ public final class SlaveTask implements Task {
   private final Broadcast.Receiver<ControlMessages> controlMessageBroadcaster;
   private final Broadcast.Receiver<Matrix> featureMatrixBroadcaster;
   private final Reduce.Sender<Pair<Integer, Integer>> maxIndexReducer;
+  private final Reduce.Sender<Map<Integer, Map<Integer, Byte>>> userDataReducer;
 
-  private Map<Integer, Map<Integer, Long>> rowRates = null, colRates = null;
+
+  private Map<Integer, Map<Integer, Byte>> rowRates = null, colRates = null;
 
   private final RateList dataSet;
 
@@ -52,6 +54,7 @@ public final class SlaveTask implements Task {
     this.controlMessageBroadcaster = communicationGroup.getBroadcastReceiver(ControlMessageBroadcaster.class);
     this.featureMatrixBroadcaster = communicationGroup.getBroadcastReceiver(FeatureBroadcaster.class);
     this.maxIndexReducer = communicationGroup.getReduceSender(MaxIndexReducer.class);
+    this.userDataReducer = communicationGroup.getReduceSender(UserDataReducer.class);
   }
 
   @Override
@@ -62,9 +65,17 @@ public final class SlaveTask implements Task {
 
       final ControlMessages message = controlMessageBroadcaster.receive();
       switch (message) {
-        case GetMax:
+        // Get maximum indices for user and item data
+        case GetMaxIndex:
           maxIndexReducer.send(new Pair<>(dataSet.getMaxUid(), dataSet.getMaxIid()));
           break;
+
+        // Collect the data ordered by UserId
+        case CollectUserData:
+          userDataReducer.send(dataSet.getRowRate());
+          dataSet.clearUserData(); // Clear the existing data to avoid redundancy
+          break;
+
         case Stop:
           LOG.info("Get STOP control massage. Terminate");
           repeat = false;

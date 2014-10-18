@@ -16,6 +16,6 @@ public final class MusicDataParser implements Parser<String> {
   @Override
   public Rate parse(String input) {
     final String[] split = input.split("\t");
-    return new MusicRate(new Integer(split[0]), new Integer(split[1]), new Long(split[2]));
+    return new MusicRate(new Integer(split[0]), new Integer(split[1]), new Byte(split[2]));
   }
 }

@@ -8,16 +8,16 @@ import edu.snu.cms.bdcs.assignment.data.Rate;
 public final class MusicRate implements Rate {
   private int userId;
   private int musicId;
-  private long rate;
+  private byte rate;
 
-  public MusicRate(int userId, int musicId, long rate) {
+  public MusicRate(int userId, int musicId, byte rate) {
     this.userId = userId;
     this.musicId = musicId;
     this.rate = rate;
   }
 
   @Override
-  public long getRate() {
+  public byte getRate() {
     return this.rate;
   }
 

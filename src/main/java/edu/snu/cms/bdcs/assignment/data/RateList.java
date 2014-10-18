@@ -18,33 +18,35 @@ public class RateList {
 
   private final DataSet<LongWritable, Text> dataSet;
   private final Parser<String> parser;
-  private final Map<Integer, Map<Integer, Long>> iRates = new HashMap<>();
-  private final Map<Integer, Map<Integer, Long>> uRates = new HashMap<>();
+  private final Map<Integer, Map<Integer, Byte>> iRates = new HashMap<>();
+  private final Map<Integer, Map<Integer, Byte>> uRates = new HashMap<>();
 
   private int maxUid = 0;
   private int maxIid = 0;
+
   @Inject
   public RateList(final DataSet<LongWritable, Text> dataSet, final Parser<String> parser) {
     this.dataSet=dataSet;
     this.parser=parser;
   }
 
-  public Map<Integer, Long> getRateByUser(final int uid) {
+  public Map<Integer, Byte> getRateByUser(final int uid) {
     return uRates.get(uid);
   }
 
-  public Map<Integer, Long> getRateByItem(final int iid) {
+  public Map<Integer, Byte> getRateByItem(final int iid) {
     return iRates.get(iid);
   }
 
-  public Map<Integer, Map<Integer, Long>> getColRate() {
+  // TODO Convert Rate matrix to be sparse matrix
+  public Map<Integer, Map<Integer, Byte>> getColRate() {
     if(uRates.isEmpty()) {
       loadData();
     }
     return iRates;
   }
 
-  public Map<Integer, Map<Integer, Long>> getRowRate() {
+  public Map<Integer, Map<Integer, Byte>> getRowRate() {
     if(iRates.isEmpty()) {
       loadData();
     }
@@ -63,7 +65,7 @@ public class RateList {
       final Rate rate = parser.parse(ratePair.second.toString());
       final int uid = rate.getUserId();
       final int iid = rate.getItemId();
-      final Long r = rate.getRate();
+      final Byte r = rate.getRate();
       updateMax(uid, iid);
 
       if(!uRates.containsKey(uid)) {
@@ -84,5 +86,9 @@ public class RateList {
 
     if(maxIid < iId)
       maxIid = iId;
+  }
+
+  public void clearUserData() {
+    uRates.clear();
   }
 }

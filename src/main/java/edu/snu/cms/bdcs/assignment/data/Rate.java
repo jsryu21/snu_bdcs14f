@@ -7,7 +7,7 @@ public interface Rate {
   /**
    * @return The rate value
    */
-  public long getRate();
+  public byte getRate();
 
   /**
    * @return The user id who rated this rate value

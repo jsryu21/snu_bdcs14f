@@ -1,4 +1,4 @@
-package edu.snu.cms.bdcs.assignment;
+package edu.snu.cms.bdcs.assignment.operators.functions;
 
 import com.microsoft.reef.io.network.group.operators.Reduce;
 import com.microsoft.reef.io.network.util.Pair;

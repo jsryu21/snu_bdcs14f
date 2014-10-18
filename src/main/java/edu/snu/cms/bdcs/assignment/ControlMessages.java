@@ -6,6 +6,7 @@ import java.io.Serializable;
  * Control Message between Master/Slave tasks
  */
 public enum ControlMessages implements Serializable{
-  GetMax,
+  GetMaxIndex,
+  CollectUserData,
   Stop
 }

@@ -18,7 +18,6 @@ package edu.snu.cms.bdcs.assignment;
 import com.microsoft.reef.client.DriverConfiguration;
 import com.microsoft.reef.client.DriverLauncher;
 import com.microsoft.reef.driver.evaluator.EvaluatorRequest;
-import com.microsoft.reef.driver.parameters.DriverMemory;
 import com.microsoft.reef.io.data.loading.api.DataLoadingRequestBuilder;
 import com.microsoft.reef.io.network.nggroup.impl.driver.GroupCommService;
 import com.microsoft.reef.runtime.local.client.LocalRuntimeConfiguration;
@@ -73,13 +72,23 @@ public final class ALS {
   }
 
   @NamedParameter(doc = "The memory of evalutors",
-    short_name = "memory", default_value = "1024")
+    short_name = "memory", default_value = "256")
   public static final class Memory implements Name<Integer> {
+  }
+
+  @NamedParameter(doc = "The memory of compute evalutor",
+    short_name = "compute_memory", default_value = "2048")
+  public static final class ComputeMemory implements Name<Integer> {
   }
 
   @NamedParameter(doc = "The number of partitions",
   short_name = "split", default_value = "4")
   public static final class Split implements Name<Integer> {
+  }
+
+  @NamedParameter(doc = "The name server port number",
+  short_name = "ns_port", default_value = "9876")
+  public static final class NameServerPort implements Name<Integer> {
   }
 
   /**
@@ -100,6 +109,7 @@ public final class ALS {
       .registerShortNameOfClass(Lambda.class)
       .registerShortNameOfClass(Memory.class)
       .registerShortNameOfClass(Split.class)
+      .registerShortNameOfClass(NameServerPort.class)
       .processCommandLine(args);
 
     final Injector injector = tang.newInjector(cb.build());
@@ -107,23 +117,25 @@ public final class ALS {
     final boolean isLocal = injector.getNamedInstance(Local.class);
     final int jobTimeout = injector.getNamedInstance(TimeOut.class) * 60 * 1000;
     final String inputDir = injector.getNamedInstance(InputDir.class);
+    final int computeMemory = injector.getNamedInstance(ComputeMemory.class);
     final int memory = injector.getNamedInstance(Memory.class);
     final int numSplit = injector.getNamedInstance(Split.class);
+    final int nameServerPort = injector.getNamedInstance(NameServerPort.class);
 
     final Configuration runtimeConfiguration;
     if (isLocal) {
-      LOG.log(Level.INFO, "Running Data Loading demo on the local runtime");
+      LOG.log(Level.INFO, "Running ALS on the local runtime");
       runtimeConfiguration = LocalRuntimeConfiguration.CONF
         .set(LocalRuntimeConfiguration.NUMBER_OF_THREADS, NUM_LOCAL_THREADS)
         .build();
     } else {
-      LOG.log(Level.INFO, "Running Data Loading demo on YARN");
+      LOG.log(Level.INFO, "Running ALS on YARN");
       runtimeConfiguration = YarnClientConfiguration.CONF.build();
     }
 
     final EvaluatorRequest computeRequest = EvaluatorRequest.newBuilder()
       .setNumber(NUM_COMPUTE_EVALUATORS)
-      .setMemory(memory)
+      .setMemory(computeMemory)
       .setNumber(1)
       .build();
 
@@ -147,6 +159,10 @@ public final class ALS {
         .build();
     final Configuration driverConfiguration =
       Configurations.merge(dataLoadingConf, GroupCommService.getConfiguration());
+    final Configuration nameServerConfiguration =
+      Tang.Factory.getTang().newConfigurationBuilder()
+//      .bindNamedParameter(NameServerPort.class, nameServerPort+"")
+      .build();
 
     DriverLauncher.getLauncher(runtimeConfiguration).run(driverConfiguration, jobTimeout);
   }

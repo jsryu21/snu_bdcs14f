@@ -9,6 +9,9 @@ import com.microsoft.reef.driver.task.RunningTask;
 import com.microsoft.reef.driver.task.TaskConfiguration;
 import com.microsoft.reef.evaluator.context.parameters.ContextIdentifier;
 import com.microsoft.reef.io.data.loading.api.DataLoadingService;
+import com.microsoft.reef.io.network.group.config.GroupOperators;
+import com.microsoft.reef.io.network.naming.NameServer;
+import com.microsoft.reef.io.network.naming.NameServerParameters;
 import com.microsoft.reef.io.network.nggroup.api.driver.CommunicationGroupDriver;
 import com.microsoft.reef.io.network.nggroup.api.driver.GroupCommDriver;
 import com.microsoft.reef.io.network.nggroup.impl.config.BroadcastOperatorSpec;
@@ -19,6 +22,7 @@ import com.microsoft.tang.Configurations;
 import com.microsoft.tang.Tang;
 import com.microsoft.tang.annotations.Name;
 import com.microsoft.tang.annotations.NamedParameter;
+import com.microsoft.tang.annotations.Parameter;
 import com.microsoft.tang.annotations.Unit;
 import com.microsoft.tang.exceptions.InjectionException;
 import com.microsoft.tang.formats.ConfigurationSerializer;
@@ -27,8 +31,11 @@ import edu.snu.cms.bdcs.assignment.data.Parser;
 import edu.snu.cms.bdcs.assignment.data.RateList;
 import edu.snu.cms.bdcs.assignment.data.ymusic.MusicDataParser;
 import edu.snu.cms.bdcs.assignment.operators.*;
+import edu.snu.cms.bdcs.assignment.operators.functions.MaxIndexReduceFunction;
+import edu.snu.cms.bdcs.assignment.operators.functions.UserDataReduceFunction;
 
 import javax.inject.Inject;
+import java.security.acl.Group;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -54,17 +61,20 @@ public final class ALSDriver {
   private final AtomicBoolean masterSubmitted = new AtomicBoolean(false);
 
   private String communicationsGroupMasterContextId;
+  private final int nameServerPort;
 
   /**
    */
   @Inject
   public ALSDriver(final DataLoadingService dataLoadingService,
                    final GroupCommDriver groupCommDriver,
-                   final ConfigurationSerializer confSerializer) {
+                   final ConfigurationSerializer confSerializer,
+                   final @Parameter(NameServerParameters.NameServerPort.class) int nameServerPort) {
     LOG.log(Level.FINE, "Instantiated 'ALSDriver'");
     this.dataLoadingService = dataLoadingService;
     this.groupCommDriver = groupCommDriver;
     this.confSerializer = confSerializer;
+    this.nameServerPort = nameServerPort;
 
     final int numPartition = dataLoadingService.getNumberOfPartitions();
     final int numParticipants = numPartition + 1;
@@ -84,6 +94,12 @@ public final class ALSDriver {
           .setReceiverId(MasterTask.TASK_ID)
           .setDataCodecClass(SerializableCodec.class)
           .setReduceFunctionClass(MaxIndexReduceFunction.class)
+          .build()) // For getting Maximum indices. Assume all the indices are normalized to start at 1
+      .addReduce(UserDataReducer.class,
+        ReduceOperatorSpec.newBuilder()
+          .setReceiverId(MasterTask.TASK_ID)
+          .setDataCodecClass(SerializableCodec.class)
+          .setReduceFunctionClass(UserDataReduceFunction.class)
           .build()) // For getting Maximum indices. Assume all the indices are normalized to start at 1
       .addBroadcast(FeatureBroadcaster.class,
         BroadcastOperatorSpec.newBuilder()
@@ -200,6 +216,10 @@ public final class ALSDriver {
 
     @Override
     public void onNext(final CompletedTask task) {
+      // TODO Resolve the port
+      task.getActiveContext().getEvaluatorDescriptor().getNodeDescriptor().getInetSocketAddress().getAddress();
+
+
       LOG.log(Level.INFO, "Got CompletedTask: {0}", task.getId());
       final byte[] retVal = task.get();
       if (retVal != null) {

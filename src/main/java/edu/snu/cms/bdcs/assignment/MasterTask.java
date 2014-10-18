@@ -9,10 +9,12 @@ import com.microsoft.reef.task.Task;
 import edu.snu.cms.bdcs.assignment.operators.ControlMessageBroadcaster;
 import edu.snu.cms.bdcs.assignment.operators.FeatureBroadcaster;
 import edu.snu.cms.bdcs.assignment.operators.MaxIndexReducer;
+import edu.snu.cms.bdcs.assignment.operators.UserDataReducer;
 import org.apache.mahout.math.Matrix;
 
 import javax.inject.Inject;
 import java.nio.charset.Charset;
+import java.util.Map;
 import java.util.logging.Logger;
 
 /**
@@ -26,9 +28,10 @@ public class MasterTask implements Task {
   private final Broadcast.Sender<ControlMessages> controlMessageBroadcaster;
   private final Broadcast.Sender<Matrix> featureBroadcaster;
   private final Reduce.Receiver<Pair<Integer, Integer>> maxIndexReducer;
+  private final Reduce.Receiver<Map<Integer, Map<Integer, Byte>>> userDataReducer;
 
   private Pair<Integer, Integer> maxIndexP;
-  private long errorRate = Long.MAX_VALUE;
+  private double errorRate = Double.MAX_VALUE;
 
   @Inject
   public MasterTask(
@@ -37,6 +40,8 @@ public class MasterTask implements Task {
     this.controlMessageBroadcaster = communicationGroup.getBroadcastSender(ControlMessageBroadcaster.class);
     this.featureBroadcaster = communicationGroup.getBroadcastSender(FeatureBroadcaster.class);
     this.maxIndexReducer = communicationGroup.getReduceReceiver(MaxIndexReducer.class);
+    this.userDataReducer = communicationGroup.getReduceReceiver(UserDataReducer.class);
+
   }
 
   @Override
@@ -46,20 +51,27 @@ public class MasterTask implements Task {
      */
 
     // 1. Get size of the input
-    controlMessageBroadcaster.send(ControlMessages.GetMax);
+    controlMessageBroadcaster.send(ControlMessages.GetMaxIndex);
     maxIndexP = maxIndexReducer.reduce();
     LOG.info("Index :"+ maxIndexP.first+","+ maxIndexP.second);
 
+    /* Unfortunately I have no choice but using the old GroupComm */
     // 2. Reduce input
+    controlMessageBroadcaster.send(ControlMessages.CollectUserData);
+    Map userData = userDataReducer.reduce(); // R ordered by U
 
-    // Init ItemMatrix
-    // TODO Get average to initiate M
-    initItemMatrix(maxIndexP.first, maxIndexP.second, 0L);
+    // TODO Scatter this input
+
+    // 3. Redistribute input
+
+    // 4. Init ItemMatrix
+    double averageRate = 2.5; // TODO Get average to initiate M
+    initItemMatrix(maxIndexP.first, maxIndexP.second, averageRate);
 
     /*
      * Iteration Step
      */
-    int iteration = -1;
+    final int iteration = -1;
     do {
       // Update User matrix using Item Matrix
       // Send Message : "Compute Item!"
@@ -76,7 +88,6 @@ public class MasterTask implements Task {
       // => Update Item Matrix
 
     } while(!converged(iteration));
-
     /*
      * Send STOP messages to all the slave tasks.
      */
@@ -86,13 +97,14 @@ public class MasterTask implements Task {
     return message.getBytes(Charset.forName("UTF-8"));
   }
 
-  private void initItemMatrix(final int numFeat, final int numItems, long averageRating) {
+  private void initItemMatrix(final int numFeat, final int numItems, double averageRating) {
     // TODO Fill out the matrices
   }
 
   private boolean converged(int iteration) {
     // TODO Validation Step
     // TODO Update the error rate
-    return iteration > 1000;
+//    return iteration > 1000;
+    return true;
   }
 }
