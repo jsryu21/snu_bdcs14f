@@ -13,7 +13,6 @@ import com.microsoft.reef.io.network.nggroup.api.driver.CommunicationGroupDriver
 import com.microsoft.reef.io.network.nggroup.api.driver.GroupCommDriver;
 import com.microsoft.reef.io.network.nggroup.impl.config.BroadcastOperatorSpec;
 import com.microsoft.reef.io.network.nggroup.impl.config.ReduceOperatorSpec;
-import com.microsoft.reef.io.network.nggroup.impl.config.parameters.SerializedGroupConfigs;
 import com.microsoft.reef.io.serialization.SerializableCodec;
 import com.microsoft.tang.Configuration;
 import com.microsoft.tang.Configurations;
@@ -25,11 +24,7 @@ import com.microsoft.wake.EventHandler;
 import edu.snu.cms.bdcs.assignment.data.Parser;
 import edu.snu.cms.bdcs.assignment.data.RateList;
 import edu.snu.cms.bdcs.assignment.data.ymusic.MusicDataParser;
-import edu.snu.cms.bdcs.assignment.operators.AllCommunicationGroup;
-import edu.snu.cms.bdcs.assignment.operators.ControlMessageBroadcaster;
-import edu.snu.cms.bdcs.assignment.operators.FeatureBroadcaster;
-import edu.snu.cms.bdcs.assignment.operators.InputReducer;
-import org.apache.hadoop.mapred.Master;
+import edu.snu.cms.bdcs.assignment.operators.*;
 
 import javax.inject.Inject;
 import java.util.HashMap;
@@ -87,12 +82,12 @@ public final class ALSDriver {
           .setSenderId(MasterTask.TASK_ID)
           .setDataCodecClass(SerializableCodec.class)
           .build())
-      .addReduce(InputReducer.class,
+      .addReduce(MaxIndexReducer.class,
         ReduceOperatorSpec.newBuilder()
-      .setReceiverId(MasterTask.TASK_ID)
-      .setDataCodecClass(SerializableCodec.class)
-          .setReduceFunctionClass(InputReduceFunction.class)
-      .build())
+          .setReceiverId(MasterTask.TASK_ID)
+          .setDataCodecClass(SerializableCodec.class)
+          .setReduceFunctionClass(MaxIndexReduceFunction.class)
+          .build())
       .finalise();
   }
 
@@ -272,9 +267,9 @@ public final class ALSDriver {
    */
   public Configuration getMasterTaskConfiguration() {
     return TaskConfiguration.CONF
-        .set(TaskConfiguration.IDENTIFIER, MasterTask.TASK_ID)
-        .set(TaskConfiguration.TASK, MasterTask.class)
-        .build();
+      .set(TaskConfiguration.IDENTIFIER, MasterTask.TASK_ID)
+      .set(TaskConfiguration.TASK, MasterTask.class)
+      .build();
   }
 
   /**

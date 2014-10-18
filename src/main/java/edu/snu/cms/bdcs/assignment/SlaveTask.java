@@ -19,12 +19,10 @@ import com.microsoft.reef.io.network.group.operators.Broadcast;
 import com.microsoft.reef.io.network.group.operators.Reduce;
 import com.microsoft.reef.io.network.nggroup.api.task.CommunicationGroupClient;
 import com.microsoft.reef.io.network.nggroup.api.task.GroupCommClient;
+import com.microsoft.reef.io.network.util.Pair;
 import com.microsoft.reef.task.Task;
 import edu.snu.cms.bdcs.assignment.data.RateList;
-import edu.snu.cms.bdcs.assignment.operators.AllCommunicationGroup;
-import edu.snu.cms.bdcs.assignment.operators.ControlMessageBroadcaster;
-import edu.snu.cms.bdcs.assignment.operators.FeatureBroadcaster;
-import edu.snu.cms.bdcs.assignment.operators.InputReducer;
+import edu.snu.cms.bdcs.assignment.operators.*;
 import org.apache.mahout.math.Matrix;
 
 import javax.inject.Inject;
@@ -40,7 +38,8 @@ public final class SlaveTask implements Task {
   private final CommunicationGroupClient communicationGroup;
   private final Broadcast.Receiver<ControlMessages> controlMessageBroadcaster;
   private final Broadcast.Receiver<Matrix> featureMatrixBroadcaster;
-  private final Reduce.Sender<Map<Integer, Map<Integer, Long>>> inputReducer;
+//  private final Reduce.Sender<Map<Integer, Map<Integer, Long>>> inputReducer;
+  private final Reduce.Sender<Pair<Integer, Integer>> maxIndexReducer;
 
   private Map<Integer, Map<Integer, Long>> rowRates = null, colRates = null;
 
@@ -56,7 +55,8 @@ public final class SlaveTask implements Task {
     this.communicationGroup = groupCommClient.getCommunicationGroup(AllCommunicationGroup.class);
     this.controlMessageBroadcaster = communicationGroup.getBroadcastReceiver(ControlMessageBroadcaster.class);
     this.featureMatrixBroadcaster = communicationGroup.getBroadcastReceiver(FeatureBroadcaster.class);
-    this.inputReducer = communicationGroup.getReduceSender(InputReducer.class);
+//    this.inputReducer = communicationGroup.getReduceSender(InputReducer.class);
+    this.maxIndexReducer = communicationGroup.getReduceSender(MaxIndexReducer.class);
   }
 
   @Override
@@ -67,14 +67,19 @@ public final class SlaveTask implements Task {
 
       final ControlMessages message = controlMessageBroadcaster.receive();
       switch (message) {
+        case GetMax:
+          maxIndexReducer.send(new Pair<>(dataSet.getMaxUid(), dataSet.getMaxIid()));
+          break;
         case Stop:
           LOG.info("Get STOP control massage. Terminate");
           repeat = false;
           break;
+        /*
         case ComputeUser:
           Matrix m = featureMatrixBroadcaster.receive();
           computeUi(m, 1); // TODO change 1 to Ui
           break;
+        */
       }
     }
 
