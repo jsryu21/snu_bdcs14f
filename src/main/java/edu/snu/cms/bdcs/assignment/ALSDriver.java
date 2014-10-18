@@ -31,6 +31,7 @@ import edu.snu.cms.bdcs.assignment.data.Parser;
 import edu.snu.cms.bdcs.assignment.data.RateList;
 import edu.snu.cms.bdcs.assignment.data.ymusic.MusicDataParser;
 import edu.snu.cms.bdcs.assignment.operators.*;
+import edu.snu.cms.bdcs.assignment.operators.functions.ItemDataReduceFunction;
 import edu.snu.cms.bdcs.assignment.operators.functions.MaxIndexReduceFunction;
 import edu.snu.cms.bdcs.assignment.operators.functions.UserDataReduceFunction;
 
@@ -100,12 +101,23 @@ public final class ALSDriver {
           .setReceiverId(MasterTask.TASK_ID)
           .setDataCodecClass(SerializableCodec.class)
           .setReduceFunctionClass(UserDataReduceFunction.class)
-          .build()) // To collect user data to group by.
+          .build()) // To collect data to group by user id.
       .addBroadcast(UserDataBroadcaster.class,
         BroadcastOperatorSpec.newBuilder()
           .setSenderId(MasterTask.TASK_ID)
           .setDataCodecClass(SerializableCodec.class)
           .build()) // To distribute the data grouped by user id.
+      .addReduce(ItemDataReducer.class,
+        ReduceOperatorSpec.newBuilder()
+          .setReceiverId(MasterTask.TASK_ID)
+          .setDataCodecClass(SerializableCodec.class)
+          .setReduceFunctionClass(ItemDataReduceFunction.class)
+          .build()) // To collect data to group by item id.
+      .addBroadcast(ItemDataBroadcaster.class,
+        BroadcastOperatorSpec.newBuilder()
+          .setSenderId(MasterTask.TASK_ID)
+          .setDataCodecClass(SerializableCodec.class)
+          .build()) // To distribute the data grouped by item id.
       .addBroadcast(FeatureBroadcaster.class,
         BroadcastOperatorSpec.newBuilder()
           .setSenderId(MasterTask.TASK_ID)

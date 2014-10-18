@@ -25,8 +25,12 @@ public class MasterTask implements Task {
   private final Broadcast.Sender<ControlMessages> controlMessageBroadcaster;
   private final Broadcast.Sender<Matrix> featureBroadcaster;
   private final Reduce.Receiver<Pair<Integer, Integer>> maxIndexReducer;
+
   private final Reduce.Receiver<Map<Integer, Map<Integer, Byte>>> userDataReducer;
   private final Broadcast.Sender<Map<Integer, Map<Integer, Byte>>> userDataBroadcaster;
+
+  private final Reduce.Receiver<Map<Integer, Map<Integer, Byte>>> itemDataReducer;
+  private final Broadcast.Sender<Map<Integer, Map<Integer, Byte>>> itemDataBroadcaster;
 
   private Pair<Integer, Integer> maxIndexP;
   private double errorRate = Double.MAX_VALUE;
@@ -38,8 +42,12 @@ public class MasterTask implements Task {
     this.controlMessageBroadcaster = communicationGroup.getBroadcastSender(ControlMessageBroadcaster.class);
     this.featureBroadcaster = communicationGroup.getBroadcastSender(FeatureBroadcaster.class);
     this.maxIndexReducer = communicationGroup.getReduceReceiver(MaxIndexReducer.class);
+
     this.userDataReducer = communicationGroup.getReduceReceiver(UserDataReducer.class);
     this.userDataBroadcaster = communicationGroup.getBroadcastSender(UserDataBroadcaster.class);
+
+    this.itemDataReducer = communicationGroup.getReduceReceiver(UserDataReducer.class);
+    this.itemDataBroadcaster = communicationGroup.getBroadcastSender(UserDataBroadcaster.class);
   }
 
   @Override
@@ -53,19 +61,27 @@ public class MasterTask implements Task {
     maxIndexP = maxIndexReducer.reduce();
     LOG.info("Index :"+ maxIndexP.first+","+ maxIndexP.second);
 
-    /* Unfortunately I have no choice but using the old GroupComm */
-    // 2. Reduce input
-    controlMessageBroadcaster.send(ControlMessages.CollectData);
-    Map userData = userDataReducer.reduce(); // R grouped by U
+    // 2. Collect R and group by user.
+    controlMessageBroadcaster.send(ControlMessages.CollectUserData);
+    final Map userData = userDataReducer.reduce(); // R grouped by U
 
-    // TODO Scatter this input
-
-    // 3. Redistribute input
+    // TODO Use scatter to reduce the redundancy.
+    // 3. Redistribute R
     controlMessageBroadcaster.send(ControlMessages.DistributeUserData);
     userDataBroadcaster.send(userData);
+    userData.clear();
 
+    // TODO The reason I split into two phase is to reduce overhead to keep replicate in one time
+    // 4. Collect R and group by item.
+    controlMessageBroadcaster.send(ControlMessages.CollectItemData);
+    final Map itemData = itemDataReducer.reduce(); // R grouped by U
 
-    // 4. Init ItemMatrix
+    // 5. Redistribute R
+    controlMessageBroadcaster.send(ControlMessages.DistributeItemData);
+    itemDataBroadcaster.send(itemData);
+    itemData.clear();
+
+    // 6. Init ItemMatrix
     double averageRate = 2.5; // TODO Get average to initiate M
     initItemMatrix(maxIndexP.first, maxIndexP.second, averageRate);
 

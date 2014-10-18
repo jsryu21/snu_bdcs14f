@@ -39,9 +39,12 @@ public final class SlaveTask implements Task {
   private final Broadcast.Receiver<ControlMessages> controlMessageBroadcaster;
   private final Broadcast.Receiver<Matrix> featureMatrixBroadcaster;
   private final Reduce.Sender<Pair<Integer, Integer>> maxIndexReducer;
+
   private final Reduce.Sender<Map<Integer, Map<Integer, Byte>>> userDataReducer;
   private final Broadcast.Receiver<Map<Integer, Map<Integer, Byte>>> userDataBroadcaster;
 
+  private final Reduce.Sender<Map<Integer, Map<Integer, Byte>>> itemDataReducer;
+  private final Broadcast.Receiver<Map<Integer, Map<Integer, Byte>>> itemDataBroadcaster;
 
   private Map<Integer, Map<Integer, Byte>> rowRates = null, colRates = null;
 
@@ -57,6 +60,9 @@ public final class SlaveTask implements Task {
     this.maxIndexReducer = communicationGroup.getReduceSender(MaxIndexReducer.class);
     this.userDataReducer = communicationGroup.getReduceSender(UserDataReducer.class);
     this.userDataBroadcaster = communicationGroup.getBroadcastReceiver(UserDataBroadcaster.class);
+
+    this.itemDataReducer = communicationGroup.getReduceSender(UserDataReducer.class);
+    this.itemDataBroadcaster = communicationGroup.getBroadcastReceiver(UserDataBroadcaster.class);
   }
 
   @Override
@@ -73,7 +79,7 @@ public final class SlaveTask implements Task {
           break;
 
         // Collect the data ordered by UserId
-        case CollectData:
+        case CollectUserData:
           userDataReducer.send(dataSet.getRowRate());
           dataSet.clearUserData(); // Clear the existing data to avoid redundancy
           break;
@@ -82,6 +88,18 @@ public final class SlaveTask implements Task {
         case DistributeUserData:
           Map userData = userDataBroadcaster.receive();
           dataSet.addUserData(userData);
+          break;
+
+        // Collect the data ordered by ItemId
+        case CollectItemData:
+          userDataReducer.send(dataSet.getRowRate());
+          dataSet.clearItemData(); // Clear the existing data to avoid redundancy
+          break;
+
+        // Re-distribute the user data
+        case DistributeItemData:
+          Map itemData = itemDataBroadcaster.receive();
+          dataSet.addItemData(itemData);
           break;
 
         case Stop:

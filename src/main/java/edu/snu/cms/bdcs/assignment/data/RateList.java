@@ -98,4 +98,16 @@ public class RateList {
       uRates.clear();
     uRates.putAll(newData);
   }
+
+  public void clearItemData() {
+    iRates.clear();
+  }
+
+  public void addItemData(Map<Integer, Map<Integer, Byte>> newData) {
+    // Not to waste memory (of course I already do a lot)
+    if (!iRates.isEmpty())
+      iRates.clear();
+    iRates.putAll(newData);
+  }
+
 }
