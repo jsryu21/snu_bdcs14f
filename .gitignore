@@ -17,4 +17,4 @@ target
 
 shimoga
 REEF_LOCAL_RUNTIME/
-./data
+data/
