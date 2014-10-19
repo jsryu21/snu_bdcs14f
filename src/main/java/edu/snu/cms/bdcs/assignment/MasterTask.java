@@ -142,11 +142,11 @@ public class MasterTask implements Task {
       // Send Message : "Gather Ij"
       // Gather the Vectors
       // => Update Item Matrix
-//      controlMessageBroadcaster.send(ControlMessages.DistributeUserFeatureMatrix);
-//      featureMatrixBroadcaster.send(itemMatrix);
+      controlMessageBroadcaster.send(ControlMessages.DistributeUserFeatureMatrix);
+      featureMatrixBroadcaster.send(itemMatrix);
 
-//      controlMessageBroadcaster.send(ControlMessages.CollectItemFeatureMatrix);
-//      itemMatrix = featureMatrixReducer.reduce();
+      controlMessageBroadcaster.send(ControlMessages.CollectItemFeatureMatrix);
+      itemMatrix = featureMatrixReducer.reduce();
 
     } while(!converged(++iteration));
     /*

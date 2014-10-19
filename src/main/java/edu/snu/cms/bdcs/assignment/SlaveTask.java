@@ -221,7 +221,7 @@ public final class SlaveTask implements Task {
 
     for(int k = 0; k < numFeat; k++) {
       for(int j = 0; j < jMax; j++) {
-        if (Ui.containsKey(j))
+        if (Ui != null && Ui.containsKey(j))
           result.set(k, j, itemMatrix.get(i).get(j));
         else
           result.set(k, j, 0);
