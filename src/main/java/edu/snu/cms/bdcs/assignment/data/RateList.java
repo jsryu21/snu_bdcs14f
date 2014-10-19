@@ -39,15 +39,15 @@ public class RateList {
   }
 
   // TODO Convert Rate matrix to be sparse matrix
-  public Map<Integer, Map<Integer, Byte>> getColRate() {
-    if(uRates.isEmpty()) {
+  public Map<Integer, Map<Integer, Byte>> getItemRate() {
+    if(iRates.isEmpty()) {
       loadData();
     }
     return iRates;
   }
 
-  public Map<Integer, Map<Integer, Byte>> getRowRate() {
-    if(iRates.isEmpty()) {
+  public Map<Integer, Map<Integer, Byte>> getUserRate() {
+    if(uRates.isEmpty()) {
       loadData();
     }
     return uRates;
@@ -61,6 +61,11 @@ public class RateList {
   }
 
   private void loadData() {
+    /*
+     * Load data so that make two replicated version of R
+     * (One grouped by user, the other grouped by item)
+     */
+    int nU = 0, nI = 0;
     for (final Pair<LongWritable, Text> ratePair : dataSet) {
       final Rate rate = parser.parse(ratePair.second.toString());
       final int uid = rate.getUserId();
@@ -70,14 +75,17 @@ public class RateList {
 
       if(!uRates.containsKey(uid)) {
         uRates.put(uid, new HashMap());
+       nU++;
       }
       uRates.get(uid).put(iid, r);
 
       if(!iRates.containsKey(iid)) {
         iRates.put(iid, new HashMap());
+        nI++;
       }
       iRates.get(iid).put(uid, r);
     }
+    LOG.info("Num of user : "+nU+" / Num of Item : "+iRates.keySet().size());
   }
 
   private void updateMax(int uid, int iId) {

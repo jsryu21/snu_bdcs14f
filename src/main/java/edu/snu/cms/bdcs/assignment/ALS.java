@@ -86,6 +86,15 @@ public final class ALS {
   public static final class Split implements Name<Integer> {
   }
 
+  @NamedParameter(doc = "The maximum limit of iteration",
+  short_name = "max_iter", default_value = "1")
+  public static final class MaxIter implements Name<Integer> {
+  }
+
+  @NamedParameter(doc = "The index of slave task")
+  public static final class TaskIndex implements Name<Integer> {
+  }
+
   @NamedParameter(doc = "The name server port number",
   short_name = "ns_port", default_value = "9876")
   public static final class NameServerPort implements Name<Integer> {
@@ -109,18 +118,21 @@ public final class ALS {
       .registerShortNameOfClass(Lambda.class)
       .registerShortNameOfClass(Memory.class)
       .registerShortNameOfClass(Split.class)
+      .registerShortNameOfClass(MaxIter.class)
       .registerShortNameOfClass(NameServerPort.class)
       .processCommandLine(args);
 
     final Injector injector = tang.newInjector(cb.build());
 
     final boolean isLocal = injector.getNamedInstance(Local.class);
+    // TODO replace the timeout
 //    final int jobTimeout = injector.getNamedInstance(TimeOut.class) * 60 * 1000;
-    final int jobTimeout = injector.getNamedInstance(TimeOut.class) * 10 * 1000;
+    final int jobTimeout = injector.getNamedInstance(TimeOut.class) * 30 * 1000;
     final String inputDir = injector.getNamedInstance(InputDir.class);
     final int computeMemory = injector.getNamedInstance(ComputeMemory.class);
     final int memory = injector.getNamedInstance(Memory.class);
     final int numSplit = injector.getNamedInstance(Split.class);
+    final int maxIter = injector.getNamedInstance(MaxIter.class);
     final int nameServerPort = injector.getNamedInstance(NameServerPort.class);
     final int numFeature = injector.getNamedInstance(NumFeature.class);
 
@@ -159,12 +171,15 @@ public final class ALS {
             .set(DriverConfiguration.ON_TASK_RUNNING, ALSDriver.TaskRunningHandler.class)
             .set(DriverConfiguration.DRIVER_MEMORY, memory))
         .build();
-    final Configuration driverConfiguration =
-      Configurations.merge(dataLoadingConf, GroupCommService.getConfiguration());
-    final Configuration nameServerConfiguration =
+    final Configuration miscConf =
       Tang.Factory.getTang().newConfigurationBuilder()
+      .bindNamedParameter(MaxIter.class, String.valueOf(maxIter))
       .bindNamedParameter(NumFeature.class, String.valueOf(numFeature))
       .build();
+    final Configuration driverConfiguration =
+      Configurations.merge(dataLoadingConf,
+        GroupCommService.getConfiguration(),
+        miscConf);
 
     DriverLauncher.getLauncher(runtimeConfiguration).run(driverConfiguration, jobTimeout);
   }

@@ -9,8 +9,7 @@ import com.microsoft.reef.io.network.util.Pair;
 import com.microsoft.reef.task.Task;
 import com.microsoft.tang.annotations.Parameter;
 import edu.snu.cms.bdcs.assignment.operators.*;
-import org.apache.mahout.math.DenseMatrix;
-import org.apache.mahout.math.Matrix;
+import edu.snu.cms.bdcs.assignment.operators.functions.MaxIndexBroadcaster;
 
 import javax.inject.Inject;
 import java.nio.charset.Charset;
@@ -27,7 +26,8 @@ public class MasterTask implements Task {
 
   private final CommunicationGroupClient communicationGroup;
   private final Broadcast.Sender<ControlMessages> controlMessageBroadcaster;
-  private final Reduce.Receiver<Pair<Integer, Integer>> maxIndexReducer;
+  private final Reduce.Receiver<Pair<Integer, Pair<Integer, Integer>>> maxIndexReducer;
+  private final Broadcast.Sender<Integer> maxIndexBroadcaster;
 
   private final Reduce.Receiver<Map<Integer, Map<Integer, Byte>>> userDataReducer;
   private final Broadcast.Sender<Map<Integer, Map<Integer, Byte>>> userDataBroadcaster;
@@ -38,13 +38,16 @@ public class MasterTask implements Task {
   private final Broadcast.Sender<Map<Integer, DenseVector>> featureMatrixBroadcaster;
   private final Reduce.Receiver<Map<Integer, DenseVector>> featureMatrixReducer;
 
-  private Pair<Integer, Integer> maxIndexP;
+  private Pair<Integer, Pair<Integer, Integer>> maxIndexP;
   private double errorRate = Double.MAX_VALUE;
 
   private Map<Integer, DenseVector> itemMatrix = null;
   private Map<Integer, DenseVector> userMatrix = null;
 
   private final int numFeat;
+  private final int maxIter = 2;
+
+  private final double eta = 0.0001;
 
   @Inject
   public MasterTask(
@@ -55,6 +58,7 @@ public class MasterTask implements Task {
 
     this.controlMessageBroadcaster = communicationGroup.getBroadcastSender(ControlMessageBroadcaster.class);
     this.maxIndexReducer = communicationGroup.getReduceReceiver(MaxIndexReducer.class);
+    this.maxIndexBroadcaster = communicationGroup.getBroadcastSender(MaxIndexBroadcaster.class);
 
     this.userDataReducer = communicationGroup.getReduceReceiver(UserDataReducer.class);
     this.userDataBroadcaster = communicationGroup.getBroadcastSender(UserDataBroadcaster.class);
@@ -75,36 +79,48 @@ public class MasterTask implements Task {
     // 1. Get size of the input
     controlMessageBroadcaster.send(ControlMessages.GetMaxIndex);
     maxIndexP = maxIndexReducer.reduce();
-    LOG.info("Index :"+ maxIndexP.first+","+ maxIndexP.second);
+    final int numTask = maxIndexP.first;
+    final int numUser = maxIndexP.second.first;
+    final int numItem = maxIndexP.second.second;
+    LOG.info("Total "+numTask+" tasks. Data size :"+ numUser +" x "+ numItem);
+
+    controlMessageBroadcaster.send(ControlMessages.DistributeMaxIndex);
+    maxIndexBroadcaster.send(numTask);
+    LOG.info("Send the number of tasks "+numTask);
 
     // 2. Collect R and group by user.
     controlMessageBroadcaster.send(ControlMessages.CollectUserData);
     final Map userData = userDataReducer.reduce(); // R grouped by U
+    LOG.info("R grouped by user. The size : "+userData.keySet().size());
 
     // TODO Use scatter to reduce the redundancy.
     // 3. Redistribute R
     controlMessageBroadcaster.send(ControlMessages.DistributeUserData);
     userDataBroadcaster.send(userData);
+    LOG.info("Distribute R grouped by user");
     userData.clear();
 
     // TODO The reason I split into two phase is to reduce overhead to keep replicate in one time
     // 4. Collect R and group by item.
     controlMessageBroadcaster.send(ControlMessages.CollectItemData);
-    final Map itemData = itemDataReducer.reduce(); // R grouped by U
+    final Map itemData = itemDataReducer.reduce(); // R grouped by M
+    LOG.info("R grouped by item. The size : "+itemData.keySet().size());
 
     // 5. Redistribute R
     controlMessageBroadcaster.send(ControlMessages.DistributeItemData);
     itemDataBroadcaster.send(itemData);
+    LOG.info("Distribute R grouped by item");
     itemData.clear();
 
     // 6. Init ItemMatrix
     double averageRate = 2.5; // TODO Get average to initiate M
-    itemMatrix = initItemMatrix(numFeat, maxIndexP.second, averageRate);
+
+    itemMatrix = initItemMatrix(numFeat, numItem, averageRate);
 
     /*
      * Iteration Step
      */
-    final int iteration = -1;
+    int iteration = 0;
     do {
       // Update User matrix using Item Matrix
       // Send Message : "Compute Item!"
@@ -114,9 +130,11 @@ public class MasterTask implements Task {
       // => Update User Matrix
       controlMessageBroadcaster.send(ControlMessages.DistributeItemFeatureMatrix);
       featureMatrixBroadcaster.send(itemMatrix);
+      LOG.info("Broadcast M to update U. Iteration : "+iteration);
 
       controlMessageBroadcaster.send(ControlMessages.CollectUserFeatureMatrix);
       userMatrix = featureMatrixReducer.reduce();
+      LOG.info("Collect U. Iteration : "+iteration);
 
       // Update Item matrix using User Matrix
       // Send Message : "Compute User!"
@@ -130,11 +148,12 @@ public class MasterTask implements Task {
 //      controlMessageBroadcaster.send(ControlMessages.CollectItemFeatureMatrix);
 //      itemMatrix = featureMatrixReducer.reduce();
 
-    } while(!converged(iteration));
+    } while(!converged(++iteration));
     /*
      * Send STOP messages to all the slave tasks.
      */
     controlMessageBroadcaster.send(ControlMessages.Stop);
+    LOG.info("Converged. Let's stop the job");
 
     final String message = "Done. Error rate is : " + errorRate;
     return message.getBytes(Charset.forName("UTF-8"));
@@ -150,9 +169,11 @@ public class MasterTask implements Task {
   }
 
   private boolean converged(int iteration) {
-    // TODO Validation Step
-    // TODO Update the error rate
-//    return iteration > 1000;
-    return true;
+    return iteration >= maxIter || getLossFunction() < eta;
+  }
+
+  private double getLossFunction() {
+    // TODO how to hold test data
+    return 0;
   }
 }

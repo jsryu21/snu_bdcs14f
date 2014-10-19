@@ -6,9 +6,9 @@ import com.microsoft.reef.io.network.util.Pair;
 import javax.inject.Inject;
 
 /**
- *
+ * Resolve the number of task id and user id and item id
  */
-public class MaxIndexReduceFunction implements Reduce.ReduceFunction<Pair<Integer, Integer>> {
+public class MaxIndexReduceFunction implements Reduce.ReduceFunction<Pair<Integer, Pair<Integer, Integer>>> {
   @Inject
   public MaxIndexReduceFunction() {
 
@@ -16,15 +16,19 @@ public class MaxIndexReduceFunction implements Reduce.ReduceFunction<Pair<Intege
 
   // TODO : maybe we need to change to collect unique keys they have
   @Override
-  public Pair<Integer, Integer> apply(Iterable<Pair<Integer, Integer>> elements) {
-    int maxUid = 0, maxIid = 0;
+  public Pair<Integer, Pair<Integer, Integer>> apply(Iterable<Pair<Integer, Pair<Integer, Integer>>> elements) {
+    int maxTaskId = 0, maxUid = 0, maxIid = 0;
 
-    for (Pair<Integer, Integer> element : elements) {
-      if (maxUid < element.first)
-        maxUid = element.first;
-      if (maxIid < element.second)
-        maxIid = element.second;
+    for (Pair<Integer, Pair<Integer, Integer>> element : elements) {
+      if(maxTaskId < element.first)
+        maxTaskId = element.first;
+
+      Pair<Integer, Integer> UidIidP = element.second;
+      if (maxUid < UidIidP.first)
+        maxUid = UidIidP.first;
+      if (maxIid < UidIidP.second)
+        maxIid = UidIidP.second;
     }
-    return new Pair<>(maxUid, maxIid);
+    return new Pair<>(maxTaskId, new Pair<>(maxUid, maxIid));
   }
 }

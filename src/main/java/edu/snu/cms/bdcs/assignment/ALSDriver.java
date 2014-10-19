@@ -29,10 +29,7 @@ import edu.snu.cms.bdcs.assignment.data.Parser;
 import edu.snu.cms.bdcs.assignment.data.RateList;
 import edu.snu.cms.bdcs.assignment.data.ymusic.MusicDataParser;
 import edu.snu.cms.bdcs.assignment.operators.*;
-import edu.snu.cms.bdcs.assignment.operators.functions.FeatureMatrixReduceFunction;
-import edu.snu.cms.bdcs.assignment.operators.functions.ItemDataReduceFunction;
-import edu.snu.cms.bdcs.assignment.operators.functions.MaxIndexReduceFunction;
-import edu.snu.cms.bdcs.assignment.operators.functions.UserDataReduceFunction;
+import edu.snu.cms.bdcs.assignment.operators.functions.*;
 
 import javax.inject.Inject;
 import java.util.HashMap;
@@ -61,13 +58,22 @@ public final class ALSDriver {
 
   private String communicationsGroupMasterContextId;
 
+  private final int maxIter;
+  private final int numFeat;
+
   /**
    */
   @Inject
   public ALSDriver(final DataLoadingService dataLoadingService,
                    final GroupCommDriver groupCommDriver,
-                   final ConfigurationSerializer confSerializer) {
+                   final ConfigurationSerializer confSerializer,
+                   final @Parameter(ALS.MaxIter.class) int maxIter,
+                   final @Parameter(ALS.NumFeature.class) int numFeat) {
     LOG.log(Level.FINE, "Instantiated 'ALSDriver'");
+
+    this.maxIter = maxIter;
+    this.numFeat = numFeat;
+
     this.dataLoadingService = dataLoadingService;
     this.groupCommDriver = groupCommDriver;
     this.confSerializer = confSerializer;
@@ -91,6 +97,11 @@ public final class ALSDriver {
           .setDataCodecClass(SerializableCodec.class)
           .setReduceFunctionClass(MaxIndexReduceFunction.class)
           .build()) // For getting Maximum indices. Assume all the indices are normalized to start at 1
+            .addBroadcast(MaxIndexBroadcaster.class,
+        BroadcastOperatorSpec.newBuilder()
+          .setSenderId(MasterTask.TASK_ID)
+          .setDataCodecClass(SerializableCodec.class)
+          .build()) // For Control message communication
       .addReduce(UserDataReducer.class,
         ReduceOperatorSpec.newBuilder()
           .setReceiverId(MasterTask.TASK_ID)
@@ -234,9 +245,6 @@ public final class ALSDriver {
 
     @Override
     public void onNext(final CompletedTask task) {
-      // TODO Resolve the port
-      task.getActiveContext().getEvaluatorDescriptor().getNodeDescriptor().getInetSocketAddress().getAddress();
-
 
       LOG.log(Level.INFO, "Got CompletedTask: {0}", task.getId());
       final byte[] retVal = task.get();
@@ -306,9 +314,12 @@ public final class ALSDriver {
    * @return Configuration for the MasterTask
    */
   public Configuration getMasterTaskConfiguration() {
-    return TaskConfiguration.CONF
-      .set(TaskConfiguration.IDENTIFIER, MasterTask.TASK_ID)
-      .set(TaskConfiguration.TASK, MasterTask.class)
+    return Tang.Factory.getTang()
+      .newConfigurationBuilder(TaskConfiguration.CONF
+        .set(TaskConfiguration.IDENTIFIER, MasterTask.TASK_ID)
+        .set(TaskConfiguration.TASK, MasterTask.class)
+        .build())
+      .bindNamedParameter(ALS.NumFeature.class, String.valueOf(numFeat))
       .build();
   }
 
@@ -322,6 +333,8 @@ public final class ALSDriver {
           .set(TaskConfiguration.IDENTIFIER, taskId)
           .set(TaskConfiguration.TASK, SlaveTask.class)
           .build())
+      .bindNamedParameter(ALS.TaskIndex.class, String.valueOf(slaveIds.get()))
+      .bindNamedParameter(ALS.MaxIter.class, String.valueOf(maxIter))
       .build();
   }
 
