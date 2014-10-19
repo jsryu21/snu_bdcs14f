@@ -30,14 +30,6 @@ public class RateList {
     this.parser=parser;
   }
 
-  public Map<Integer, Byte> getRateByUser(final int uid) {
-    return uRates.get(uid);
-  }
-
-  public Map<Integer, Byte> getRateByItem(final int iid) {
-    return iRates.get(iid);
-  }
-
   // TODO Convert Rate matrix to be sparse matrix
   public Map<Integer, Map<Integer, Byte>> getItemRate() {
     if(iRates.isEmpty()) {
@@ -75,7 +67,7 @@ public class RateList {
 
       if(!uRates.containsKey(uid)) {
         uRates.put(uid, new HashMap());
-       nU++;
+        nU++;
       }
       uRates.get(uid).put(iid, r);
 
@@ -85,7 +77,7 @@ public class RateList {
       }
       iRates.get(iid).put(uid, r);
     }
-    LOG.info("Num of user : "+nU+" / Num of Item : "+iRates.keySet().size());
+    LOG.info("Num of user : "+nU+" / Num of Item : "+nI);
   }
 
   private void updateMax(int uid, int iId) {
@@ -96,19 +88,11 @@ public class RateList {
       maxIid = iId;
   }
 
-  public void clearUserData() {
-    uRates.clear();
-  }
-
   public void addUserData(Map<Integer, Map<Integer, Byte>> newData) {
     // Not to waste memory (of course I already do a lot)
     if (!uRates.isEmpty())
       uRates.clear();
     uRates.putAll(newData);
-  }
-
-  public void clearItemData() {
-    iRates.clear();
   }
 
   public void addItemData(Map<Integer, Map<Integer, Byte>> newData) {

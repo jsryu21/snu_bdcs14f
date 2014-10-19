@@ -27,7 +27,7 @@ public class MasterTask implements Task {
   private final CommunicationGroupClient communicationGroup;
   private final Broadcast.Sender<ControlMessages> controlMessageBroadcaster;
   private final Reduce.Receiver<Pair<Integer, Pair<Integer, Integer>>> maxIndexReducer;
-  private final Broadcast.Sender<Integer> maxIndexBroadcaster;
+  private final Broadcast.Sender<Pair<Integer, Pair<Integer, Integer>>> maxIndexBroadcaster;
 
   private final Reduce.Receiver<Map<Integer, Map<Integer, Byte>>> userDataReducer;
   private final Broadcast.Sender<Map<Integer, Map<Integer, Byte>>> userDataBroadcaster;
@@ -85,7 +85,7 @@ public class MasterTask implements Task {
     LOG.info("Total "+numTask+" tasks. Data size :"+ numUser +" x "+ numItem);
 
     controlMessageBroadcaster.send(ControlMessages.DistributeMaxIndex);
-    maxIndexBroadcaster.send(numTask);
+    maxIndexBroadcaster.send(new Pair(numTask, new Pair(numUser, numItem)));
     LOG.info("Send the number of tasks "+numTask);
 
     // 2. Collect R and group by user.

@@ -335,6 +335,7 @@ public final class ALSDriver {
           .build())
       .bindNamedParameter(ALS.TaskIndex.class, String.valueOf(slaveIds.get()))
       .bindNamedParameter(ALS.MaxIter.class, String.valueOf(maxIter))
+      .bindNamedParameter(ALS.NumFeature.class, String.valueOf(numFeat))
       .build();
   }
 
